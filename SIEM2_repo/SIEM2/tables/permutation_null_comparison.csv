@@ -1,0 +1,4 @@
+null_model,description,n_iterations,null_mean,null_sd,null_median,pct5,pct95,null_max,observed,empirical_p
+independent_shuffle,"Permutes NK, TNF-alpha, and LPS vectors independently (discards real TNF/LPS correlation)",10000,4.8,2.2,5,NA,9,15,20,0.0001
+NK_only,"Holds real TNF-alpha/LPS pairing fixed; permutes only the NK vector (correlation-preserving)",10000,20.7,4.3,21,14,28,38,20,0.60
+NK_only_excl_proliferation,"NK-only null after excluding 5 candidate proliferation/culture-artifact genes (CKAP2L, MRPL24, TFEC, ACAT2, BYSL)",10000,20.1,4.3,NA,NA,NA,NA,15,0.91

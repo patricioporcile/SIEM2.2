@@ -1,0 +1,22 @@
+term,library,obs_k,null_mean,null_sd,empirical_p,BH_FDR
+Neg. reg. blood coagulation,GO BP,3,0.33,0.55,0.0019,0.030
+Cell adhesion molecules,KEGG,3,0.38,0.59,0.0033,0.030
+Complement/coagulation cascades,KEGG,3,0.43,0.63,0.0047,0.030
+Pos. reg. blood coagulation,GO BP,2,0.16,0.39,0.0072,0.030
+Neg. reg. T cell activation,GO BP,2,0.19,0.41,0.0086,0.030
+Neg. reg. T cell proliferation,GO BP,2,0.19,0.41,0.0086,0.030
+SMAD1 (ChEA),ChEA,7,2.75,1.58,0.0163,0.049
+GATA3 (ChEA),ChEA,7,2.99,1.64,0.0272,0.069
+ATF3 (ChEA),ChEA,9,4.51,2.03,0.0342,0.069
+FOXM1 (ChEA),ChEA,3,0.80,0.84,0.0360,0.069
+CEBPB (ChEA),ChEA,6,2.55,1.50,0.0362,0.069
+Pos. reg. cytokine production,GO BP,5,1.99,1.33,0.0423,0.074
+SA1/STAG1 (ChEA),ChEA,7,3.65,1.83,0.0688,0.100
+Toll-like receptor signaling,KEGG,3,1.01,0.95,0.0714,0.100
+CTCF (ChEA),ChEA,10,6.05,2.31,0.0748,0.100
+Pos. reg. IL-12 production,GO BP,2,0.49,0.66,0.0762,0.100
+PD-L1/PD-1 checkpoint pathway,KEGG,2,0.58,0.72,0.1057,0.131
+JUN (ChEA),ChEA,7,4.27,1.97,0.1272,0.148
+SMRT/NCOR2 (ChEA),ChEA,7,4.91,2.10,0.2140,0.237
+NF-kappa B signaling pathway,KEGG,2,1.73,1.24,0.5282,0.555
+RELA (ChEA),ChEA,6,7.55,2.58,0.7786,0.779

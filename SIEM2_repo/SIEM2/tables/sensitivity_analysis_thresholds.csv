@@ -1,0 +1,5 @@
+Threshold,UP,DOWN,TOTAL,Interpretation
+|log2FC| > 0.5,59,58,117,Too inclusive, includes noise
+|log2FC| > 0.75,23,17,40,Moderately inclusive
+|log2FC| > 1.0,14,6,20,Threshold used in this study
+|log2FC| > 1.5,5,3,8,Too restrictive; excludes SDC4, CD274, IRF5

@@ -1,0 +1,35 @@
+# Core dependencies for SIEM meta-analysis pipeline
+# Python 3.9+ required
+
+# Data manipulation
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Statistics
+scipy>=1.11.0
+statsmodels>=0.14.0
+
+# Bioinformatics
+# GEO data access (optional - for downloading new datasets)
+# GEOparse>=1.0.0  # Uncomment if needed
+
+# GSEA enrichment analysis
+gseapy>=1.1.0
+
+# Network analysis (for PPI)
+# networkx>=3.1  # Uncomment if needed
+
+# HTTP requests for GEO download
+requests>=2.31.0
+
+# Jupyter
+jupyter>=1.0.0
+ipython>=8.14.0
+
+# Optional: progress bars
+tqdm>=4.65.0
