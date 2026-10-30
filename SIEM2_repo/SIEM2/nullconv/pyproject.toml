@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "nullconv"
+version = "0.1.0"
+description = "Independent-shuffle vs correlation-preserving null models for multi-dataset gene convergence tests"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.24"]
+[project.optional-dependencies]
+test = ["pytest", "pandas"]
+[tool.setuptools.packages.find]
+where = ["src"]
