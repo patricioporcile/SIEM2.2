@@ -3,17 +3,21 @@
 Question answered: given one *focal* dataset and one or more *reference* datasets,
 do more genes show concordant, large changes in all of them than expected by chance?
 
-Two null models are provided:
+Two null models are provided, and they answer different questions:
 
-``independent``
-    Every dataset is shuffled independently across gene labels. It is valid only if the
-    datasets are independent under the null. If the reference datasets are correlated
-    (e.g. two neutrophil datasets under related stimuli) it is far too permissive.
+``independent``  (question: "do the datasets agree at all?")
+    Every dataset is shuffled independently across gene labels (the null of tests such as
+    SuperExactTest). Its null hypothesis is that ALL datasets are mutually independent. If the
+    reference datasets are themselves correlated (e.g. two neutrophil datasets under related
+    stimuli) that hypothesis is false, so it is rejected even when the focal dataset adds nothing;
+    for the question "does the focal dataset add convergence?" those rejections are false positives.
 
-``correlation_preserving``
-    The reference datasets are kept paired gene-for-gene (their real dependence is
-    preserved) and only the focal dataset is permuted. It tests whether the focal dataset
-    adds convergence beyond what the references already share.
+``conditional``  (question: "does the focal dataset add convergence beyond the references?")
+    The reference datasets are held fixed, gene for gene, and only the focal dataset is permuted.
+    This is a test conditional on the references: with one direction it is exactly Fisher's exact
+    (hypergeometric) test of whether focal-called genes are over-represented among the genes called
+    in all references (see :func:`fisher_exact_conditional`); with two directions it is the sum of
+    the two such counts.
 
 Everything works on "calls" (+1 up, -1 down, 0 not called), obtained either from a
 fold-change threshold (:func:`calls_from_fc`) or from within-dataset rank tails
@@ -28,8 +32,8 @@ import numpy as np
 
 __all__ = [
     "calls_from_fc", "calls_from_ranks", "convergence_count", "analytic_expectation",
-    "null_independent", "null_correlation_preserving", "empirical_p",
-    "diagnose_dependence", "false_positive_rate", "power_curve", "convergence_test",
+    "null_independent", "null_conditional", "empirical_p",
+    "diagnose_dependence", "false_positive_rate", "power_curve", "convergence_test", "fisher_exact_conditional", "convergence_test_all_foci", "null_correlation_preserving",
     "ConvergenceResult",
 ]
 
@@ -81,7 +85,7 @@ def convergence_count(focal, refs) -> int:
 
 
 def analytic_expectation(focal, refs) -> float:
-    """Closed-form expected count under the correlation-preserving null:
+    """Closed-form expected count under the conditional null:
     n_up * P(focal up) + n_dn * P(focal down), n_up/n_dn = genes concordant in all references."""
     f, R = _prep(focal, refs)
     n = len(f)
@@ -107,7 +111,7 @@ def empirical_p(observed: int, null) -> float:
 
 
 # ---------------------------------------------------------------------------- nulls
-def null_correlation_preserving(focal, refs, n_perm: int = 10_000, seed=None) -> np.ndarray:
+def null_conditional(focal, refs, n_perm: int = 10_000, seed=None) -> np.ndarray:
     """Null counts when only the focal vector is permuted (references stay paired).
 
     Sampled exactly from the underlying (multivariate) hypergeometric distribution, which is
@@ -159,7 +163,7 @@ def diagnose_dependence(ref_values: Sequence, focal_calls=None, ref_calls=None) 
 
     ``ref_values``: list of continuous vectors (e.g. log2 fold changes) over the shared genes.
     Returns pairwise Pearson/Spearman correlations. If ``focal_calls`` and ``ref_calls`` are
-    given, also returns ``inflation``: expected count under the correlation-preserving null divided
+    given, also returns ``inflation``: expected count under the conditional null divided
     by the expected count under the independent null (>>1 means the independent null is badly
     mis-specified)."""
     V = [np.asarray(v, float) for v in ref_values]
@@ -173,33 +177,35 @@ def diagnose_dependence(ref_values: Sequence, focal_calls=None, ref_calls=None) 
     if focal_calls is not None and ref_calls is not None:
         f, R = _prep(focal_calls, ref_calls)
         e_c, e_i = analytic_expectation(f, R), _expectation_independent(f, R)
-        out["expected_corr_preserving"], out["expected_independent"] = float(e_c), float(e_i)
+        out["expected_conditional"], out["expected_independent"] = float(e_c), float(e_i)
         out["inflation"] = float(e_c / e_i) if e_i > 0 else float("inf")
     return out
 
 
 def false_positive_rate(focal, refs, alpha: float = 0.05, n_null: int = 5000, seed=None) -> Dict:
-    """How often would each null declare 'significant convergence' if the focal dataset carried
-    NO real convergence (its labels shuffled)? For the observed dependence structure.
+    """How often would each null reject if the focal dataset added NOTHING beyond the references
+    (its labels shuffled)? These rejections are false positives for the question 'does the focal
+    dataset add convergence?'; for the independent null they are true detections of dependence among
+    the references. For the observed dependence structure.
 
     If the focal labels are shuffled, the observed count is distributed exactly as the
-    correlation-preserving null, so the rate for the independent null is the share of those draws
-    that exceed its alpha critical value. The correlation-preserving null stays at or below alpha."""
+    conditional null, so the rate for the independent null is the share of those draws
+    that exceed its alpha critical value. The conditional null stays at or below alpha."""
     f, R = _prep(focal, refs)
     rng = np.random.default_rng(seed)
-    cp = null_correlation_preserving(f, R, n_null, rng.integers(2**31))
+    cp = null_conditional(f, R, n_null, rng.integers(2**31))
     ind = null_independent(f, R, n_null, rng.integers(2**31))
     p_ind = np.array([empirical_p(o, ind) for o in cp])
     # cp null calibration: p of each draw against the same distribution
     srt = np.sort(cp)
     p_cp = (1 + (len(cp) - np.searchsorted(srt, cp, side="left"))) / (1 + len(cp))
     return {"alpha": alpha, "independent": float((p_ind <= alpha).mean()),
-            "correlation_preserving": float((p_cp <= alpha).mean())}
+            "conditional": float((p_cp <= alpha).mean())}
 
 
 def power_curve(focal, refs, k_values=(0, 2, 5, 10, 15), p_detect: float = 1.0, alpha: float = 0.05,
                 n_sim: int = 300, n_perm: int = 1000, seed=None) -> Dict[int, float]:
-    """Power of the correlation-preserving test when k truly shared genes (drawn from the
+    """Power of the conditional test when k truly shared genes (drawn from the
     reference-concordant candidates) are planted in the focal dataset; each planted gene is
     called in the focal dataset with probability ``p_detect`` (limited sensitivity of small designs)."""
     f, R = _prep(focal, refs)
@@ -217,23 +223,59 @@ def power_curve(focal, refs, k_values=(0, 2, 5, 10, 15), p_detect: float = 1.0, 
                 idx = idx[rng.random(len(idx)) < p_detect]
                 g[idx] = sign[idx]
             obs = convergence_count(g, R)
-            null = null_correlation_preserving(g, R, n_perm, rng.integers(2**31))
+            null = null_conditional(g, R, n_perm, rng.integers(2**31))
             hits += empirical_p(obs, null) <= alpha
         res[int(k)] = hits / n_sim
     return res
 
 
+
+# ----------------------------------------------------------------- exact conditional test
+def fisher_exact_conditional(focal, refs, direction: str = "up") -> float:
+    """Exact one-sided Fisher/hypergeometric p-value for ONE direction.
+
+    Population: all N genes. 'Marked' genes: those called ``direction`` in the focal dataset (K of them).
+    Draw: the n genes called ``direction`` in ALL references. Statistic: how many drawn genes are marked.
+    P(X >= observed) under the hypergeometric distribution equals the conditional-null p-value restricted
+    to that direction (the Monte-Carlo conditional null reproduces it)."""
+    from math import lgamma, exp, log
+    f, R = _prep(focal, refs)
+    s = 1 if direction == "up" else -1
+    N = len(f)
+    K = int((f == s).sum())
+    allref = np.logical_and.reduce([r == s for r in R])
+    n = int(allref.sum()); x = int(((f == s) & allref).sum())
+    def lc(a, b): return lgamma(a + 1) - lgamma(b + 1) - lgamma(a - b + 1)
+    lo, hi = max(0, n + K - N), min(n, K)
+    terms = [lc(K, k) + lc(N - K, n - k) - lc(N, n) for k in range(max(x, lo), hi + 1)]
+    if not terms: return 1.0
+    m = max(terms)
+    return float(min(1.0, exp(m) * sum(exp(t - m) for t in terms)))
+
+
+def convergence_test_all_foci(values: Dict[str, Sequence], thr: float = 1.0, rank_q: Optional[float] = None,
+                              n_perm: int = 10_000, seed: Optional[int] = 0) -> Dict[str, "ConvergenceResult"]:
+    """Run the conditional test with each dataset in turn as the focal one (others as references).
+
+    Use when the question is symmetric or when no dataset is obviously the focal one. Results are
+    returned per focal dataset; interpret each as 'does THIS dataset add convergence beyond the others?'"""
+    names = list(values)
+    if len(names) < 3:
+        raise ValueError("need at least 3 datasets (one focal and two or more references)")
+    return {n: convergence_test(values[n], [values[m] for m in names if m != n], thr=thr, rank_q=rank_q,
+                                n_perm=n_perm, seed=seed) for n in names}
+
 # ------------------------------------------------------------------------ main entry
 @dataclass
 class ConvergenceResult:
     observed: int
-    expected_corr_preserving: float
+    expected_conditional: float
     null_independent_mean: float
     null_independent_sd: float
     p_independent: float
-    null_corr_preserving_mean: float
-    null_corr_preserving_sd: float
-    p_corr_preserving: float
+    null_conditional_mean: float
+    null_conditional_sd: float
+    p_conditional: float
     n_genes: int
     n_candidates_up: int
     n_candidates_down: int
@@ -243,8 +285,8 @@ class ConvergenceResult:
     def summary(self) -> str:
         s = [f"observed convergent genes: {self.observed} (of {self.n_genes} shared genes)",
              f"independent-shuffle null:       {self.null_independent_mean:.1f} +/- {self.null_independent_sd:.1f}, p = {self.p_independent:.4g}",
-             f"correlation-preserving null:    {self.null_corr_preserving_mean:.1f} +/- {self.null_corr_preserving_sd:.1f}"
-             f" (analytic {self.expected_corr_preserving:.1f}), p = {self.p_corr_preserving:.4g}"]
+             f"conditional null:    {self.null_conditional_mean:.1f} +/- {self.null_conditional_sd:.1f}"
+             f" (analytic {self.expected_conditional:.1f}), p = {self.p_conditional:.4g}"]
         s += ["WARNING: " + w for w in self.warnings]
         return "\n".join(s)
 
@@ -254,7 +296,7 @@ def convergence_test(focal_values, ref_values: Sequence, thr: float = 1.0, rank_
     """Run both nulls on continuous inputs (e.g. log2 fold changes over the SAME genes).
 
     Use ``rank_q`` (e.g. 0.1) to call by within-dataset rank tails instead of the threshold ``thr``.
-    The correlation-preserving result is the one to interpret; the independent result is returned
+    The conditional result is the one to interpret; the independent result is returned
     for comparison, together with a warning when the reference datasets are dependent."""
     refs_list = list(ref_values)
     mk = (lambda v: calls_from_ranks(v, rank_q)) if rank_q else (lambda v: calls_from_fc(v, thr))
@@ -262,15 +304,19 @@ def convergence_test(focal_values, ref_values: Sequence, thr: float = 1.0, rank_
     obs = convergence_count(f, R)
     rng = np.random.default_rng(seed)
     ni = null_independent(f, R, n_perm, rng.integers(2**31))
-    nc = null_correlation_preserving(f, R, n_perm, rng.integers(2**31))
+    nc = null_conditional(f, R, n_perm, rng.integers(2**31))
     nu, nd, _, _ = _ref_candidates(R)
     dep = diagnose_dependence(refs_list, f, R)
     warns = []
     corr = [abs(v) for v in dep["pearson"].values()]
     if dep.get("inflation", 1) > 1.5 or (corr and max(corr) > 0.2):
         warns.append("reference datasets are dependent (max |r| = %.2f; expected count is %.1fx higher than under "
-                     "independence). The independent-shuffle p-value is anti-conservative; interpret p_corr_preserving."
+                     "independence). The independent-shuffle null tests whether ALL datasets are independent, which is false here; it will reject even if the focal dataset adds nothing. For the question 'does the focal dataset add convergence?', interpret p_conditional."
                      % (max(corr) if corr else float('nan'), dep.get("inflation", float('nan'))))
     return ConvergenceResult(obs, float(analytic_expectation(f, R)), float(ni.mean()), float(ni.std()),
                              empirical_p(obs, ni), float(nc.mean()), float(nc.std()), empirical_p(obs, nc),
                              len(f), nu, nd, dep["pearson"], warns)
+
+
+# backwards-compatible alias (earlier name of the conditional null)
+null_correlation_preserving = null_conditional
